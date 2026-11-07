@@ -1,7 +1,7 @@
 "use client";
 
 import { Line, QuadraticBezierLine, Text } from "@react-three/drei";
-import { Canvas, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, type CanvasProps, events as createEvents, type ThreeEvent, useFrame, useThree } from "@react-three/fiber";
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { buildHall, clampToHall, EYE, HALL, START, type Plaque, type Wing } from "@/lib/hall";
@@ -42,17 +42,44 @@ export interface HallProps {
   onNear: (area: string | null) => void;
 }
 
+/** Clicks and hovers aim from the cursor, or from the middle of the screen while the mouse is captured for looking. */
+const aimEvents: CanvasProps["events"] = (store) => ({
+  ...createEvents(store),
+  compute(event, state) {
+    if (document.pointerLockElement === state.gl.domElement) state.pointer.set(0, 0);
+    else state.pointer.set((event.offsetX / state.size.width) * 2 - 1, -(event.offsetY / state.size.height) * 2 + 1);
+    state.raycaster.setFromCamera(state.pointer, state.camera);
+  },
+});
+
 export default function HallScene(props: HallProps) {
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    const onChange = () => setLocked(document.pointerLockElement instanceof HTMLCanvasElement);
+    document.addEventListener("pointerlockchange", onChange);
+    return () => document.removeEventListener("pointerlockchange", onChange);
+  }, []);
+  // Picking a skill opens a panel, and you need the cursor back to use it.
+  useEffect(() => {
+    if (props.selected) document.exitPointerLock();
+  }, [props.selected]);
+
   return (
-    <Canvas
-      camera={{ fov: 70, near: 0.05, far: 60, position: [START.x, EYE, START.z] }}
-      dpr={[1, 2]}
-      style={{ touchAction: "none" }}
-    >
-      <color attach="background" args={["#1a120c"]} />
-      <fog attach="fog" args={["#1a120c", 14, 32]} />
-      <Hall {...props} />
-    </Canvas>
+    <>
+      <Canvas
+        camera={{ fov: 70, near: 0.05, far: 60, position: [START.x, EYE, START.z] }}
+        dpr={[1, 2]}
+        events={aimEvents}
+        style={{ touchAction: "none" }}
+      >
+        <color attach="background" args={["#1a120c"]} />
+        <fog attach="fog" args={["#1a120c", 14, 32]} />
+        <Hall {...props} />
+      </Canvas>
+      {locked && (
+        <span className="pointer-events-none absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80 ring-1 ring-black/40" />
+      )}
+    </>
   );
 }
 
@@ -133,6 +160,8 @@ const KEYS: Record<string, "f" | "b" | "l" | "r" | "turnL" | "turnR" | "up" | "d
 };
 /** Radians per second the arrow keys turn the view. */
 const TURN_SPEED = 1.8;
+/** Radians the view turns per pixel of mouse movement. */
+const MOUSE_SENS = 0.0025;
 
 function Player({ navRef, wings, onNear }: { navRef: RefObject<Nav>; wings: Wing[]; onNear: (a: string | null) => void }) {
   const gl = useThree((s) => s.gl);
@@ -146,11 +175,27 @@ function Player({ navRef, wings, onNear }: { navRef: RefObject<Nav>; wings: Wing
     let travelled = 0;
 
     const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") {
+        // The first click only captures the mouse for looking; it shouldn't also walk or pick a skill.
+        const captured = document.pointerLockElement === el;
+        navRef.current.dragged = !captured;
+        if (!captured) Promise.resolve(el.requestPointerLock()).catch(() => {});
+        return;
+      }
       last = { x: e.clientX, y: e.clientY };
       travelled = 0;
       navRef.current.dragged = false;
     };
     const onMove = (e: PointerEvent) => {
+      if (document.pointerLockElement === el) {
+        if (!e.movementX && !e.movementY) return;
+        navRef.current.face = null;
+        // Mouse-look: move right to turn right, up to look up.
+        look.current.yaw -= e.movementX * MOUSE_SENS;
+        look.current.pitch = Math.max(-0.7, Math.min(0.7, look.current.pitch - e.movementY * MOUSE_SENS));
+        return;
+      }
+      // Touch screens have no mouse to capture, so they still drag to look.
       if (!last) return;
       const dx = e.clientX - last.x;
       const dy = e.clientY - last.y;
