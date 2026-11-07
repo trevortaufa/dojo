@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <!-- One katana lying flat: handle on the left, curved tip on the right. -->
+    <g id="katana" stroke="#2a1f16" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M21 29.5 H52 Q59 29.5 62 33.5 H21 Z" fill="#dfe3e8"/>
+      <rect x="3" y="29" width="15" height="6" rx="1.5" fill="#b3261e"/>
+      <ellipse cx="19.5" cy="32" rx="2.2" ry="5.5" fill="#b8860b"/>
+    </g>
+  </defs>
+  <!-- Crossed, handles down. -->
+  <use href="#katana" transform="rotate(-45 32 32)"/>
+  <use href="#katana" transform="translate(64 0) scale(-1 1) rotate(-45 32 32)"/>
+</svg>
