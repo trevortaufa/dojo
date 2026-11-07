@@ -1,34 +1,26 @@
 @import "tailwindcss";
 
+/* Always night sky: the galaxy reads best on dark. */
 :root {
-  --background: #f6f3ee;
-  --surface: #ffffff;
-  --foreground: #1c1917;
-  --muted: #78716c;
-  --line: #d6d3d1;
-  --open: #d97706;
-  --learning: #2563eb;
-  --mastered: #16a34a;
-  --gap: #dc2626;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #12100e;
-    --surface: #1f1c19;
-    --foreground: #f5f5f4;
-    --muted: #a8a29e;
-    --line: #44403c;
-    --open: #f59e0b;
-    --learning: #60a5fa;
-    --mastered: #4ade80;
-    --gap: #f87171;
-  }
+  color-scheme: dark;
+  --background: #070a16;
+  --panel: rgb(17 22 42 / 0.88);
+  --foreground: #e8ecf8;
+  --muted: #8b93ad;
+  --line: #2a3354;
+  --dust: #9aa6c8;
+  --link: #5b6a96;
+  --cross: #7f8fbf;
+  --locked: #5a6385;
+  --open: #fbbf24;
+  --learning: #60a5fa;
+  --mastered: #6ee7b7;
+  --gap: #f87171;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-surface: var(--surface);
+  --color-panel: var(--panel);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-line: var(--line);
@@ -41,11 +33,50 @@
 }
 
 body {
-  background: var(--background);
+  background: radial-gradient(ellipse at 50% 40%, #131a36 0%, var(--background) 70%) fixed;
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 button {
   cursor: pointer;
+}
+
+/* The camera glides between the whole galaxy and one constellation. */
+.camera {
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.constellation .halo {
+  fill: transparent;
+  stroke: transparent;
+  transition: fill 200ms, stroke 200ms;
+}
+.constellation:hover .halo,
+.constellation:focus-visible .halo {
+  fill: rgb(255 255 255 / 0.04);
+  stroke: var(--line);
+}
+
+.star:focus-visible circle:last-of-type {
+  stroke: var(--foreground);
+}
+
+/* Stars that are ready to try pulse gently to catch the eye. */
+.twinkle {
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+@keyframes twinkle {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .camera {
+    transition: none;
+  }
+  .twinkle {
+    animation: none;
+  }
 }

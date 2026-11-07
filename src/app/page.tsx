@@ -1,5 +1,5 @@
-import { SkillTree } from "@/components/SkillTree";
+import { Galaxy } from "@/components/Galaxy";
 
 export default function Home() {
-  return <SkillTree />;
+  return <Galaxy />;
 }
