@@ -2,8 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { pendingAnswers } from "@/lib/exercises";
 import { AREAS, beltFor, nextSkill, statusOf } from "@/lib/skills";
 import { MAX_MASTERY, type Tree } from "@/lib/types";
+import { GRADE_PROMPT, type OnAnswer } from "./Exercises";
 import { type Rated, SkillDetail } from "./SkillDetail";
 
 // three.js needs a real browser (WebGL), so the hall is never rendered on the server.
@@ -72,6 +74,22 @@ export function Dojo() {
   );
   const walkTo = useCallback((area: string) => setGoTo((g) => ({ area, n: (g?.n ?? 0) + 1 })), []);
 
+  const answer = useCallback<OnAnswer>(async (exercise, body) => {
+    try {
+      const res = await fetch("/api/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exercise, ...body }),
+      });
+      const data = await res.json();
+      if (!res.ok) return (data as { error?: string }).error ?? `HTTP ${res.status}`;
+      setTree(data as Tree);
+      return null;
+    } catch (e) {
+      return `Couldn't save (${(e as Error).message}).`;
+    }
+  }, []);
+
   if (!tree) {
     return <Centered>{error ? `Couldn't load your skills (${error}).` : "Loading your skills…"}</Centered>;
   }
@@ -79,6 +97,7 @@ export function Dojo() {
   const mastered = tree.skills.filter((s) => s.mastery >= MAX_MASTERY).length;
   const { belt } = beltFor(mastered, tree.skills.length);
   const suggestion = nextSkill(tree.skills);
+  const waiting = pendingAnswers(tree).length;
   const current = selected ? rated.get(selected) : undefined;
   const areas = [...new Set([...AREAS, ...tree.skills.map((s) => s.area)])].filter((a) => tree.skills.some((s) => s.area === a));
 
@@ -100,10 +119,17 @@ export function Dojo() {
           <h1 className="text-lg font-semibold tracking-tight">Dojo</h1>
           {near && <p className="text-sm text-muted">{near} · click a skill to study it</p>}
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-panel px-3 py-1.5 text-sm backdrop-blur">
-          <span className="h-2.5 w-8 rounded-sm" style={{ background: belt.color, boxShadow: "0 0 0 1px var(--line)" }} />
-          {belt.name}
-          <span className="text-muted">· {mastered}/{tree.skills.length}</span>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2 rounded-lg bg-panel px-3 py-1.5 text-sm backdrop-blur">
+            <span className="h-2.5 w-8 rounded-sm" style={{ background: belt.color, boxShadow: "0 0 0 1px var(--line)" }} />
+            {belt.name}
+            <span className="text-muted">· {mastered}/{tree.skills.length}</span>
+          </div>
+          {waiting > 0 && (
+            <div className="rounded-lg bg-panel px-3 py-1 text-xs text-muted backdrop-blur">
+              {waiting} answer{waiting === 1 ? "" : "s"} waiting · say <b className="text-foreground">{GRADE_PROMPT}</b> in Claude Code
+            </div>
+          )}
         </div>
       </header>
 
@@ -144,8 +170,15 @@ export function Dojo() {
       </div>
 
       {current && (
-        <aside className="absolute inset-x-0 bottom-0 z-10 max-h-[65vh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl backdrop-blur md:inset-x-auto md:bottom-4 md:right-4 md:top-16 md:max-h-none md:w-80 md:rounded-2xl">
-          <SkillDetail star={current} stars={rated} onPick={pick} onClose={() => setSelected(null)} />
+        <aside className="absolute inset-x-0 bottom-0 z-10 max-h-[65vh] overflow-y-auto rounded-t-2xl border border-line bg-panel p-4 shadow-2xl backdrop-blur md:inset-x-auto md:bottom-4 md:right-4 md:top-16 md:max-h-none md:w-96 md:rounded-2xl">
+          <SkillDetail
+            star={current}
+            stars={rated}
+            exercises={(tree.exercises ?? []).filter((e) => e.skill === current.skill.id)}
+            onAnswer={answer}
+            onPick={pick}
+            onClose={() => setSelected(null)}
+          />
         </aside>
       )}
     </main>

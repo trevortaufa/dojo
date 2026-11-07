@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MAX_MASTERY, type Skill, type Status, type Verdict } from "@/lib/types";
+import { type Exercise, MAX_MASTERY, type Skill, type Status } from "@/lib/types";
+import { Exercises, type OnAnswer, VERDICT_COLOR } from "./Exercises";
 
 /** A skill with its current status. */
 export interface Rated {
@@ -21,11 +22,6 @@ export const STATUS_COLOR: Record<Status, string> = {
   learning: "var(--learning)",
   mastered: "var(--mastered)",
 };
-const VERDICT_COLOR: Record<Verdict, string> = {
-  gap: "var(--gap)",
-  partial: "var(--open)",
-  solid: "var(--mastered)",
-};
 
 export function Pips({ mastery, color }: { mastery: number; color: string }) {
   return (
@@ -44,11 +40,15 @@ export function Pips({ mastery, color }: { mastery: number; color: string }) {
 export function SkillDetail({
   star: { skill, status },
   stars,
+  exercises,
+  onAnswer,
   onPick,
   onClose,
 }: {
   star: Rated;
   stars: Map<string, Rated>;
+  exercises: Exercise[];
+  onAnswer: OnAnswer;
   onPick: (id: string) => void;
   onClose: () => void;
 }) {
@@ -107,9 +107,16 @@ export function SkillDetail({
         </div>
       )}
 
+      <div>
+        <div className="mb-1 font-medium">
+          Practice{status === "locked" && <span className="font-normal text-muted"> · locked, but you can try it anyway</span>}
+        </div>
+        <Exercises exercises={exercises} onAnswer={onAnswer} />
+      </div>
+
       <div className="rounded-lg border border-line p-3">
         <div className="mb-2 font-medium">
-          {status === "locked" ? "Master what it builds on first, or try it anyway:" : "Get grilled in Claude Code:"}
+          {status === "locked" ? "Master what it builds on first, or get grilled anyway:" : "Or get grilled live in Claude Code:"}
         </div>
         <div className="flex items-center gap-2">
           <code className="flex-1 select-all rounded bg-black/30 px-2 py-1 font-mono text-xs">{prompt}</code>
@@ -128,8 +135,11 @@ export function SkillDetail({
             {[...skill.history].reverse().map((a) => (
               <li key={a.at} className="border-l-2 pl-3" style={{ borderColor: VERDICT_COLOR[a.verdict] }}>
                 <div className="flex justify-between text-xs text-muted">
-                  <span className="font-semibold uppercase" style={{ color: VERDICT_COLOR[a.verdict] }}>
-                    {a.verdict}
+                  <span>
+                    <span className="font-semibold uppercase" style={{ color: VERDICT_COLOR[a.verdict] }}>
+                      {a.verdict}
+                    </span>
+                    {a.source && a.source !== "grill" && <span> · {a.source === "quiz" ? "quiz" : "written"}</span>}
                   </span>
                   {new Date(a.at).toLocaleDateString()}
                 </div>

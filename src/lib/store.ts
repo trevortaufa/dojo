@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { withSeedExercises } from "./exercises";
 import { seedTree } from "./skills";
 import type { Tree } from "./types";
 
@@ -64,9 +65,10 @@ async function withLock<T>(fn: () => Promise<T>): Promise<T> {
 export function updateTree(change: (tree: Tree) => Tree = (t) => t): Promise<Tree> {
   return withLock(async () => {
     const stored = await readJson<Tree>(treeFile());
-    const current = stored ?? seedTree();
+    // Trees saved before exercises existed get the starter set; that counts as a change, so it's saved.
+    const current = withSeedExercises(stored ?? seedTree());
     const next = change(current);
-    if (stored && next === current) return current;
+    if (stored && next === stored) return stored;
     const saved = { ...next, rev: current.rev + 1 };
     await writeJson(treeFile(), saved);
     return saved;

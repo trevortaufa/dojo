@@ -71,12 +71,16 @@ export function applyVerdict(mastery: number, verdict: Verdict): number {
   return Math.min(MAX_MASTERY, Math.max(0, mastery + step));
 }
 
-export function recordAttempt(tree: Tree, id: string, attempt: Attempt): Tree {
+/** Logs an attempt and moves mastery. `cap` stops a level-up past that point (quizzes use it); it never lowers mastery. */
+export function recordAttempt(tree: Tree, id: string, attempt: Attempt, cap = MAX_MASTERY): Tree {
   return {
     ...tree,
-    skills: tree.skills.map((s) =>
-      s.id === id ? { ...s, mastery: applyVerdict(s.mastery, attempt.verdict), history: [...s.history, attempt] } : s,
-    ),
+    skills: tree.skills.map((s) => {
+      if (s.id !== id) return s;
+      const moved = applyVerdict(s.mastery, attempt.verdict);
+      const mastery = moved > s.mastery ? Math.max(s.mastery, Math.min(moved, cap)) : moved;
+      return { ...s, mastery, history: [...s.history, attempt] };
+    }),
   };
 }
 

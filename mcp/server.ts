@@ -8,9 +8,10 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { AnswerError, gradeWritten, pendingAnswers } from "../src/lib/exercises";
 import { AREAS, recordAttempt, statusOf } from "../src/lib/skills";
 import { loadTree, updateTree } from "../src/lib/store";
-import { MAX_MASTERY, type Skill, type Tree } from "../src/lib/types";
+import { type Exercise, MAX_MASTERY, type Skill, type Tree } from "../src/lib/types";
 
 // Claude Code may start us from any directory; without DOJO_DATA_DIR, use this project's data folder.
 process.env.DOJO_DATA_DIR ??= path.join(path.dirname(path.resolve(process.argv[1])), "..", "data");
@@ -23,7 +24,7 @@ async function run(fn: () => Promise<string>) {
   try {
     return text(await fn());
   } catch (err) {
-    if (err instanceof UserError) return { ...text(err.message), isError: true };
+    if (err instanceof UserError || err instanceof AnswerError) return { ...text(err.message), isError: true };
     throw err;
   }
 }
@@ -47,6 +48,12 @@ function formatSkill(skill: Skill, tree: Tree): string {
   return `[${skill.id}] ${skill.title} — ${status}, ${skill.mastery}/${MAX_MASTERY}${req}`;
 }
 
+function formatExercise(e: Exercise): string {
+  const r = e.response;
+  const state = !r ? "not answered" : r.verdict ? `graded ${r.verdict}` : "WAITING FOR YOUR GRADE";
+  return `  [${e.id}] ${e.kind} · ${state}: ${e.prompt}`;
+}
+
 /* ───────────── Server ───────────── */
 
 const server = new McpServer(
@@ -60,7 +67,11 @@ const server = new McpServer(
       "call record_attempt with a verdict: solid (correct and they could defend it in code review), partial (right idea, " +
       "missing a key piece) or gap (wrong or can't explain). Then tell them in one or two lines what was right, what was " +
       "missing, and the next question. Stop after 3–5 questions or when they ask. Use add_skill when a new concept comes " +
-      "up in their work that deserves its own node.",
+      "up in their work that deserves its own node. " +
+      "The user also answers exercises in the web app. Quizzes grade themselves; written answers wait for you. When they " +
+      "say 'grade my dojo answers', call list_pending_answers, then grade_answer each one (same solid/partial/gap bar) and " +
+      "tell them in a line or two per answer what held up and what was missing. Use add_exercise to leave them new " +
+      "practice in the app, especially aimed at gaps from earlier answers.",
   },
 );
 
@@ -100,6 +111,8 @@ server.registerTool(
       const s = findSkill(tree, ref);
       const lines = [formatSkill(s, tree), `Area: ${s.area}`, `Summary: ${s.summary}`];
       if (s.seenIn) lines.push(`Seen in: ${s.seenIn}`);
+      const exercises = (tree.exercises ?? []).filter((e) => e.skill === s.id);
+      if (exercises.length) lines.push("Exercises in the app:\n" + exercises.map(formatExercise).join("\n"));
       lines.push(
         s.history.length
           ? "History:\n" + s.history.map((a) => `  ${a.at.slice(0, 10)} ${a.verdict.toUpperCase()}: ${a.question}\n    ${a.feedback}`).join("\n")
@@ -195,6 +208,95 @@ server.registerTool(
         const next = { ...tree, skills: tree.skills.map((x) => (x.id === s.id ? { ...x, ...defined } : x)) };
         result = `Updated ${formatSkill(next.skills.find((x) => x.id === s.id)!, next)}`;
         return next;
+      });
+      return result;
+    }),
+);
+
+server.registerTool(
+  "list_pending_answers",
+  {
+    description: "Written answers the user gave in the web app that are waiting to be graded, with the skill each one tests.",
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  () =>
+    run(async () => {
+      const tree = await loadTree();
+      const pending = pendingAnswers(tree);
+      if (!pending.length) return "No written answers waiting.";
+      return pending
+        .map((e) => {
+          const skill = tree.skills.find((s) => s.id === e.skill);
+          const context = skill ? `${skill.title}: ${skill.summary}${skill.seenIn ? ` (seen in ${skill.seenIn})` : ""}` : e.skill;
+          return `[${e.id}] ${context}\nQ: ${e.prompt}\nA: ${e.response!.text}`;
+        })
+        .join("\n\n");
+    }),
+);
+
+server.registerTool(
+  "grade_answer",
+  {
+    description:
+      "Grades one written answer from the web app. The verdict moves mastery like record_attempt, and the feedback shows under the answer in the app.",
+    inputSchema: {
+      exercise: z.string().describe("Exercise id from list_pending_answers"),
+      verdict: z.enum(["gap", "partial", "solid"]),
+      feedback: z.string().describe("One or two lines: what held up and what was missing"),
+    },
+  },
+  ({ exercise, verdict, feedback }) =>
+    run(async () => {
+      let result = "";
+      await updateTree((tree) => {
+        const next = gradeWritten(tree, exercise, verdict, feedback);
+        const id = tree.exercises!.find((e) => e.id === exercise)!.skill;
+        const before = tree.skills.find((s) => s.id === id)!;
+        const after = next.skills.find((s) => s.id === id)!;
+        result = `Graded ${verdict}. ${formatSkill(after, next)}`;
+        if (after.mastery >= MAX_MASTERY && before.mastery < MAX_MASTERY) result += "\nMastered!";
+        return next;
+      });
+      return result;
+    }),
+);
+
+server.registerTool(
+  "add_exercise",
+  {
+    description:
+      "Leaves a new exercise in the web app. quiz: multiple choice, graded instantly in the app (only lifts mastery to " +
+      `${MAX_MASTERY - 1}/${MAX_MASTERY}). written: the user explains in their own words and you grade it later with grade_answer.`,
+    inputSchema: {
+      skill: skillRef,
+      kind: z.enum(["quiz", "written"]),
+      prompt: z.string().describe("The question. Tie it to their real work where you can."),
+      options: z.array(z.string()).min(2).max(6).optional().describe("quiz only: the choices"),
+      answer: z.number().int().nonnegative().optional().describe("quiz only: index of the right option"),
+      explain: z.string().optional().describe("quiz only: why the right option is right, shown after they answer"),
+      hint: z.string().optional().describe("written only: an optional nudge"),
+    },
+  },
+  ({ skill: ref, kind, prompt, options, answer, explain, hint }) =>
+    run(async () => {
+      let result = "";
+      await updateTree((tree) => {
+        const s = findSkill(tree, ref);
+        let exercise: Exercise;
+        const n = (tree.exercises ?? []).filter((e) => e.skill === s.id && e.kind === kind).length + 1;
+        let id = `${s.id}-${kind}-${n}`;
+        for (let i = n; (tree.exercises ?? []).some((e) => e.id === id); i++) id = `${s.id}-${kind}-${i + 1}`;
+        if (kind === "quiz") {
+          if (!options || answer === undefined || answer >= options.length || !explain) {
+            throw new UserError("A quiz needs options, the index of the right answer, and explain.");
+          }
+          exercise = { id, skill: s.id, kind, prompt, options, answer, explain };
+        } else {
+          exercise = { id, skill: s.id, kind, prompt, hint };
+        }
+        result = `Added ${kind} [${id}] to ${s.title}. It shows in the app within a few seconds.`;
+        return { ...tree, exercises: [...(tree.exercises ?? []), exercise] };
       });
       return result;
     }),
