@@ -89,6 +89,15 @@ export function depthOf(id: string, skills: Skill[], seen = new Set<string>()): 
   return parents.length ? Math.max(...parents) + 1 : 0;
 }
 
+/** One skill to suggest next: keep going on one in progress, else the earliest one that's ready. */
+export function nextSkill(skills: Skill[]): Skill | null {
+  const learning = skills.filter((s) => statusOf(s, skills) === "learning");
+  if (learning.length) return learning.reduce((a, b) => (b.mastery > a.mastery ? b : a));
+  const open = skills.filter((s) => statusOf(s, skills) === "open");
+  if (!open.length) return null;
+  return open.reduce((a, b) => (depthOf(b.id, skills) < depthOf(a.id, skills) ? b : a));
+}
+
 export interface Belt {
   name: string;
   color: string;

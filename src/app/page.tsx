@@ -1,5 +1,5 @@
-import { Galaxy } from "@/components/Galaxy";
+import { Dojo } from "@/components/Dojo";
 
 export default function Home() {
-  return <Galaxy />;
+  return <Dojo />;
 }

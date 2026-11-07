@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { Star } from "@/lib/galaxy";
-import { MAX_MASTERY, type Status, type Verdict } from "@/lib/types";
+import { MAX_MASTERY, type Skill, type Status, type Verdict } from "@/lib/types";
+
+/** A skill with its current status. */
+export interface Rated {
+  skill: Skill;
+  status: Status;
+}
 
 export const STATUS_LABEL: Record<Status, string> = {
   locked: "Locked",
@@ -42,8 +47,8 @@ export function SkillDetail({
   onPick,
   onClose,
 }: {
-  star: Star;
-  stars: Map<string, Star>;
+  star: Rated;
+  stars: Map<string, Rated>;
   onPick: (id: string) => void;
   onClose: () => void;
 }) {

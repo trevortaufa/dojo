@@ -1,20 +1,17 @@
 @import "tailwindcss";
 
-/* Always night sky: the galaxy reads best on dark. */
+/* Warm wood and paper, to match the hall. */
 :root {
   color-scheme: dark;
-  --background: #070a16;
-  --panel: rgb(17 22 42 / 0.88);
-  --foreground: #e8ecf8;
-  --muted: #8b93ad;
-  --line: #2a3354;
-  --dust: #9aa6c8;
-  --link: #5b6a96;
-  --cross: #7f8fbf;
-  --locked: #5a6385;
-  --open: #fbbf24;
-  --learning: #60a5fa;
-  --mastered: #6ee7b7;
+  --background: #1a120c;
+  --panel: rgb(30 21 14 / 0.88);
+  --foreground: #f3ead7;
+  --muted: #b5a58c;
+  --line: #4a3726;
+  --locked: #8a7d6a;
+  --open: #e4572e;
+  --learning: #6b8fd6;
+  --mastered: #e0b048;
   --gap: #f87171;
 }
 
@@ -33,50 +30,11 @@
 }
 
 body {
-  background: radial-gradient(ellipse at 50% 40%, #131a36 0%, var(--background) 70%) fixed;
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
 button {
   cursor: pointer;
-}
-
-/* The camera glides between the whole galaxy and one constellation. */
-.camera {
-  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.constellation .halo {
-  fill: transparent;
-  stroke: transparent;
-  transition: fill 200ms, stroke 200ms;
-}
-.constellation:hover .halo,
-.constellation:focus-visible .halo {
-  fill: rgb(255 255 255 / 0.04);
-  stroke: var(--line);
-}
-
-.star:focus-visible circle:last-of-type {
-  stroke: var(--foreground);
-}
-
-/* Stars that are ready to try pulse gently to catch the eye. */
-.twinkle {
-  animation: twinkle 2.4s ease-in-out infinite;
-}
-@keyframes twinkle {
-  50% {
-    opacity: 0.55;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .camera {
-    transition: none;
-  }
-  .twinkle {
-    animation: none;
-  }
 }
