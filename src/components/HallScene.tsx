@@ -133,12 +133,18 @@ const KEYS: Record<string, "f" | "b" | "l" | "r" | "turnL" | "turnR" | "up" | "d
 };
 /** Radians per second the arrow keys turn the view. */
 const TURN_SPEED = 1.8;
+/** Space jumps. Gravity in m/s², a bit stronger than real so the hop feels snappy. */
+const GRAVITY = 15;
+/** Upward speed (m/s) at take-off: about 0.6 m high, since height = speed² / (2 × gravity). */
+const JUMP_SPEED = 4.2;
 
 function Player({ navRef, wings, onNear }: { navRef: RefObject<Nav>; wings: Wing[]; onNear: (a: string | null) => void }) {
   const gl = useThree((s) => s.gl);
   const keys = useRef(new Set<string>());
   const look = useRef({ yaw: 0, pitch: 0 });
   const pos = useRef({ x: START.x, z: START.z });
+  /** Height above eye level (m) and vertical speed (m/s) while in the air. */
+  const air = useRef({ y: 0, vy: 0 });
 
   useEffect(() => {
     const el = gl.domElement;
@@ -167,6 +173,15 @@ function Player({ navRef, wings, onNear }: { navRef: RefObject<Nav>; wings: Wing
 
     const typing = (e: KeyboardEvent) => e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
     const onKey = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        // Leave Space to a focused button or link, and to text boxes.
+        if (typing(e) || (e.target instanceof HTMLElement && e.target.closest("button, a"))) return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault(); // stop the page scrolling
+        // Only jump from the floor, and not again from holding the key down.
+        if (e.type === "keydown" && !e.repeat && air.current.y === 0) air.current.vy = JUMP_SPEED;
+        return;
+      }
       const k = KEYS[e.code];
       if (!k || typing(e) || e.ctrlKey || e.metaKey || e.altKey) return;
       e.preventDefault();
@@ -251,7 +266,17 @@ function Player({ navRef, wings, onNear }: { navRef: RefObject<Nav>; wings: Wing
     const c = clampToHall(p.x, p.z);
     p.x = c.x;
     p.z = c.z;
-    camera.position.set(p.x, EYE, p.z);
+    // Rise and fall: gravity slows the climb, then pulls you back to the floor.
+    const a = air.current;
+    if (a.y > 0 || a.vy > 0) {
+      a.vy -= GRAVITY * dt;
+      a.y += a.vy * dt;
+      if (a.y <= 0) {
+        a.y = 0;
+        a.vy = 0;
+      }
+    }
+    camera.position.set(p.x, EYE + a.y, p.z);
     camera.rotation.set(l.pitch, l.yaw, 0, "YXZ");
 
     let nearest: string | null = null;

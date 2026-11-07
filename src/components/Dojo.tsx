@@ -111,7 +111,7 @@ export function Dojo() {
 
       {!moved && (
         <p className="pointer-events-none absolute inset-x-0 top-1/2 mx-auto w-fit rounded-lg bg-panel px-4 py-2 text-center text-sm backdrop-blur">
-          <b>W A S D</b> to walk · <b>arrow keys</b> or drag to look · click the floor to walk there
+          <b>W A S D</b> to walk · <b>Space</b> to jump · <b>arrow keys</b> or drag to look · click the floor to walk there
         </p>
       )}
 
