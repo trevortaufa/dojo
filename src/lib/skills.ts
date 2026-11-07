@@ -72,12 +72,34 @@ export function applyVerdict(mastery: number, verdict: Verdict): number {
 }
 
 export function recordAttempt(tree: Tree, id: string, attempt: Attempt): Tree {
+  const session = tree.session?.skill === id ? tree.session : null;
   return {
     ...tree,
+    session: session && { ...session, last: { verdict: attempt.verdict, feedback: attempt.feedback }, updatedAt: attempt.at },
     skills: tree.skills.map((s) =>
       s.id === id ? { ...s, mastery: applyVerdict(s.mastery, attempt.verdict), history: [...s.history, attempt] } : s,
     ),
   };
+}
+
+/** Puts the next question of a grilling on the board, starting a new session if it's a different skill. */
+export function askQuestion(tree: Tree, id: string, question: string): Tree {
+  const same = tree.session?.skill === id ? tree.session : null;
+  return {
+    ...tree,
+    session: { skill: id, question, asked: (same?.asked ?? 0) + 1, last: same?.last, updatedAt: new Date().toISOString() },
+  };
+}
+
+export const endSession = (tree: Tree): Tree => (tree.session ? { ...tree, session: null } : tree);
+
+/** A session nobody has touched for this long was abandoned (e.g. the chat was closed mid-grilling). */
+const SESSION_TTL_MS = 30 * 60_000;
+
+/** The tree with any abandoned session hidden. */
+export function withLiveSession(tree: Tree, now = Date.now()): Tree {
+  const s = tree.session;
+  return s && now - Date.parse(s.updatedAt) > SESSION_TTL_MS ? { ...tree, session: null } : tree;
 }
 
 /** How many steps of prerequisites sit before a skill; its column in the tree. */

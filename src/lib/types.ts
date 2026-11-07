@@ -27,10 +27,24 @@ export interface Skill {
   history: Attempt[];
 }
 
+/** A grilling happening right now in Claude Code, so the dojo can show it live. */
+export interface Session {
+  skill: string;
+  /** The question waiting for an answer. */
+  question: string;
+  /** How many questions have been asked so far. */
+  asked: number;
+  /** How the previous answer was graded. */
+  last?: { verdict: Verdict; feedback: string };
+  /** ISO timestamp of the last change; a session left alone too long counts as abandoned. */
+  updatedAt: string;
+}
+
 export interface Tree {
   skills: Skill[];
   /** Bumped on every save. */
   rev: number;
+  session?: Session | null;
 }
 
 export type Status = "locked" | "open" | "learning" | "mastered";

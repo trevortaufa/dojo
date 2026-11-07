@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start -p 3031",
     "lint": "eslint",
-    "mcp": "tsx mcp/server.ts"
+    "mcp": "tsx mcp/server.ts",
+    "dojo": "tsx --env-file-if-exists=.env.local scripts/dojo.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

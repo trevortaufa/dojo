@@ -27,6 +27,7 @@ export function Dojo() {
   // Poll so grades Claude records through MCP show up within a few seconds.
   useEffect(() => {
     let alive = true;
+    let grilling: string | null = null;
     const load = () => {
       if (document.hidden) return;
       fetch("/api/tree")
@@ -35,6 +36,13 @@ export function Dojo() {
           if (!alive) return;
           setTree((old) => (old?.rev === t.rev ? old : t));
           setError(null);
+          // When a grilling starts in Claude Code, walk to that skill and open it so its answers fill in live.
+          const skill = t.skills.find((s) => s.id === t.session?.skill);
+          if (skill && skill.id !== grilling) {
+            setGoTo((g) => ({ area: skill.area, n: (g?.n ?? 0) + 1 }));
+            setSelected(skill.id);
+          }
+          grilling = skill?.id ?? null;
         })
         .catch((e: Error) => alive && setError(e.message));
     };
@@ -72,6 +80,8 @@ export function Dojo() {
   );
   const walkTo = useCallback((area: string) => setGoTo((g) => ({ area, n: (g?.n ?? 0) + 1 })), []);
 
+  const live = tree?.session ? rated.get(tree.session.skill)?.skill : undefined;
+
   if (!tree) {
     return <Centered>{error ? `Couldn't load your skills (${error}).` : "Loading your skills…"}</Centered>;
   }
@@ -106,6 +116,21 @@ export function Dojo() {
           <span className="text-muted">· {mastered}/{tree.skills.length}</span>
         </div>
       </header>
+
+      {tree.session && live && (
+        <div className="pointer-events-none absolute left-1/2 top-16 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-open bg-panel px-4 py-3 text-sm shadow-lg backdrop-blur">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-open">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-open" />
+            Grilling in Claude Code · {live.title} · question {tree.session.asked}
+          </p>
+          <p className="mt-1">{tree.session.question}</p>
+          {tree.session.last && (
+            <p className="mt-1 text-muted">
+              Last answer: <b>{tree.session.last.verdict}</b> — {tree.session.last.feedback}
+            </p>
+          )}
+        </div>
+      )}
 
       {error && <p className="absolute left-4 top-16 text-sm text-gap">Lost contact with the server ({error}). Retrying…</p>}
 

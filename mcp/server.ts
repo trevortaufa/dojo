@@ -8,7 +8,7 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { AREAS, recordAttempt, statusOf } from "../src/lib/skills";
+import { AREAS, askQuestion, endSession, recordAttempt, statusOf } from "../src/lib/skills";
 import { loadTree, updateTree } from "../src/lib/store";
 import { MAX_MASTERY, type Skill, type Tree } from "../src/lib/types";
 
@@ -55,12 +55,12 @@ const server = new McpServer(
     instructions:
       "The user's dojo: a skill tree of software-engineering concepts they are learning (they are a junior engineer). " +
       "When they say 'grill me on <skill>', call get_skill first so you can see past answers and aim at earlier gaps. " +
-      "Then ask ONE question at a time and wait for their answer — never answer it for them. Prefer 'explain why' and " +
+      "Then ask ONE question at a time, calling ask_question with it each time so the dojo shows it live, and wait for their answer — never answer it for them. Prefer 'explain why' and " +
       "'what would happen if' questions tied to their real work (the skill's seenIn) over definitions. After each answer, " +
       "call record_attempt with a verdict: solid (correct and they could defend it in code review), partial (right idea, " +
       "missing a key piece) or gap (wrong or can't explain). Then tell them in one or two lines what was right, what was " +
       "missing, and the next question. Stop after 3–5 questions or when they ask. Use add_skill when a new concept comes " +
-      "up in their work that deserves its own node.",
+      "up in their work that deserves its own node. Call end_grilling when you stop.",
   },
 );
 
@@ -138,6 +138,38 @@ server.registerTool(
         return next;
       });
       return result;
+    }),
+);
+
+server.registerTool(
+  "ask_question",
+  {
+    description: "Shows the question you're about to ask in the dojo, live, so the user can follow the grilling there.",
+    inputSchema: { skill: skillRef, question: z.string().describe("The question, as you'll ask it") },
+  },
+  ({ skill: ref, question }) =>
+    run(async () => {
+      let result = "";
+      await updateTree((tree) => {
+        const s = findSkill(tree, ref);
+        const next = askQuestion(tree, s.id, question);
+        result = `Showing question ${next.session!.asked} on ${s.title}.`;
+        return next;
+      });
+      return result;
+    }),
+);
+
+server.registerTool(
+  "end_grilling",
+  {
+    description: "Clears the live grilling from the dojo once you've finished.",
+    inputSchema: {},
+  },
+  () =>
+    run(async () => {
+      await updateTree(endSession);
+      return "Grilling ended.";
     }),
 );
 
